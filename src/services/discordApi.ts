@@ -1,4 +1,4 @@
-import { Bunker, BunkerStatus } from '../types/bunker';
+import { BunkerStatus } from '../types/bunker';
 
 // Variável para controlar o tempo da última requisição
 let lastRequestTime = 0;
@@ -16,7 +16,7 @@ export async function fetchBunkerStatus(): Promise<BunkerStatus> {
   try {
     // Verifica se já passou tempo suficiente desde a última requisição
     if (!canMakeRequest()) {
-      const waitTime = Math.ceil((lastRequestTime + MIN_REQUEST_INTERVAL - Date.now()) / 1000);
+      // Calculamos o tempo de espera mas não precisamos usar na resposta
       return {
         bunkers: [],
         lastUpdate: Date.now(),

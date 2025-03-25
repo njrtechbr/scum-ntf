@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { BunkerStatus } from '@/types/bunker';
-import { FaSync, FaClock, FaLock, FaUnlock, FaDiscord, FaInfoCircle, FaShieldAlt } from 'react-icons/fa';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { FaSync, FaClock, FaLock, FaUnlock, FaDiscord, FaInfoCircle } from 'react-icons/fa';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -53,83 +52,13 @@ export default function BunkerStatusClient({ initialData }: Props) {
     }
   };
 
-  // Efeito para iniciar o carregamento de dados na montagem do componente
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      fetchData();
-    }
-    // Limpa os timers quando o componente é desmontado
-    return () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
-    };
-  }, []);
-
-  // Efeito para gerenciar o auto-refresh
-  useEffect(() => {
-    if (autoRefresh && !nextRefresh) {
-      scheduleNextRefresh(30000); // 30 segundos para o próximo refresh
-    } else if (!autoRefresh && nextRefresh) {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-      setNextRefresh(null);
-    }
-  }, [autoRefresh, nextRefresh]);
-
-  // Efeito para atualizar o countdown a cada segundo
-  useEffect(() => {
-    const timer = setInterval(() => {
-      // Atualiza o countdown para cada bunker
-      const now = Date.now();
-      const newCountdown: { [key: string]: string } = {};
-      
-      data.bunkers.forEach(bunker => {
-        if (bunker.timestamp > 0) {
-          const diff = Math.max(0, bunker.timestamp - now);
-          newCountdown[bunker.name] = formatTimeLeft(diff);
-        } else {
-          newCountdown[bunker.name] = 'Indisponível';
-        }
-      });
-      
-      setCountdown(newCountdown);
-      
-      // Atualiza o countdown para o próximo refresh
-      if (nextRefresh && autoRefresh) {
-        const seconds = Math.max(0, Math.floor((nextRefresh - Date.now()) / 1000));
-        if (seconds <= 0 && autoRefresh) {
-          fetchData();
-        }
-      }
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [data.bunkers, nextRefresh, autoRefresh]);
-
-  // Agenda o próximo refresh
-  const scheduleNextRefresh = (delay: number) => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-    }
-    
-    const refreshTime = Date.now() + delay;
-    setNextRefresh(refreshTime);
-    
-    refreshTimerRef.current = setTimeout(() => {
-      refreshTimerRef.current = null;
-      if (autoRefresh) fetchData();
-    }, delay);
-  };
-
   // Verifica se já passou tempo suficiente desde a última requisição
-  const canMakeRequest = () => {
+  const canMakeRequest = useCallback(() => {
     return Date.now() >= nextRequestTime;
-  };
+  }, [nextRequestTime]);
 
-  const fetchData = async () => {
+  // Função para buscar dados da API
+  const fetchData = useCallback(async () => {
     if (isLoading) return; // Evita múltiplas requisições simultâneas
 
     setIsLoading(true);
@@ -162,7 +91,7 @@ export default function BunkerStatusClient({ initialData }: Props) {
         const now = Date.now();
         const newCountdown: { [key: string]: string } = {};
         
-        result.bunkers.forEach((bunker: any) => {
+        result.bunkers.forEach((bunker: { name: string; isActive: boolean; timestamp: number }) => {
           if (bunker.timestamp > 0) {
             const diff = Math.max(0, bunker.timestamp - now);
             newCountdown[bunker.name] = formatTimeLeft(diff);
@@ -187,13 +116,81 @@ export default function BunkerStatusClient({ initialData }: Props) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [autoRefresh, canMakeRequest, isLoading, nextRequestTime]);
 
-  const getRefreshCountdown = () => {
-    if (!nextRefresh) return '';
-    const seconds = Math.max(0, Math.floor((nextRefresh - Date.now()) / 1000));
-    return seconds > 0 ? `(${seconds}s)` : '';
-  };
+  // Agenda o próximo refresh
+  const scheduleNextRefresh = useCallback((delay: number) => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+    
+    const refreshTime = Date.now() + delay;
+    setNextRefresh(refreshTime);
+    
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      if (autoRefresh) fetchData();
+    }, delay);
+  }, [autoRefresh, fetchData]);
+
+  // Efeito para iniciar o carregamento de dados na montagem do componente
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      fetchData();
+    }
+    // Limpa os timers quando o componente é desmontado
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (retryTimeoutRef.current) {
+        const currentTimeout = retryTimeoutRef.current;
+        clearTimeout(currentTimeout);
+      }
+    };
+  }, [fetchData]);
+
+  // Efeito para gerenciar o auto-refresh
+  useEffect(() => {
+    if (autoRefresh && !nextRefresh) {
+      scheduleNextRefresh(30000); // 30 segundos para o próximo refresh
+    } else if (!autoRefresh && nextRefresh) {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      setNextRefresh(null);
+    }
+  }, [autoRefresh, nextRefresh, scheduleNextRefresh]);
+
+  // Efeito para atualizar o countdown a cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // Atualiza o countdown para cada bunker
+      const now = Date.now();
+      const newCountdown: { [key: string]: string } = {};
+      
+      data.bunkers.forEach(bunker => {
+        if (bunker.timestamp > 0) {
+          const diff = Math.max(0, bunker.timestamp - now);
+          newCountdown[bunker.name] = formatTimeLeft(diff);
+        } else {
+          newCountdown[bunker.name] = 'Indisponível';
+        }
+      });
+      
+      setCountdown(newCountdown);
+      
+      // Atualiza o countdown para o próximo refresh
+      if (nextRefresh && autoRefresh) {
+        const seconds = Math.max(0, Math.floor((nextRefresh - Date.now()) / 1000));
+        if (seconds <= 0 && autoRefresh) {
+          fetchData();
+        }
+      }
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [data.bunkers, nextRefresh, autoRefresh, fetchData]);
 
   // Ordena os bunkers: ativos primeiro, depois por tempo (mais próximo primeiro)
   const sortedBunkers = [...data.bunkers].sort((a, b) => {
@@ -211,6 +208,12 @@ export default function BunkerStatusClient({ initialData }: Props) {
       return 'Carregando...';
     }
     return new Date(data.lastUpdate).toLocaleTimeString();
+  };
+
+  const getRefreshCountdown = () => {
+    if (!nextRefresh) return '';
+    const seconds = Math.max(0, Math.floor((nextRefresh - Date.now()) / 1000));
+    return seconds > 0 ? `(${seconds}s)` : '';
   };
 
   return (
@@ -335,7 +338,7 @@ export default function BunkerStatusClient({ initialData }: Props) {
             <div className="col-span-full p-8 text-center text-gray-400 bg-gray-800/50 rounded-lg border border-gray-700/50 shadow-lg">
               <FaInfoCircle size={32} className="mx-auto mb-3 text-gray-500" />
               <p className="text-lg mb-2">Nenhum bunker encontrado</p>
-              <p className="text-sm text-gray-500">Clique em "Atualizar Agora" para buscar os dados.</p>
+              <p className="text-sm text-gray-500">Clique em &ldquo;Atualizar Agora&rdquo; para buscar os dados.</p>
             </div>
           ) : (
             sortedBunkers.map((bunker) => (

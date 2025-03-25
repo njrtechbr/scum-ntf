@@ -127,8 +127,8 @@ export async function GET() {
     console.log(`Total de mensagens recebidas: ${messages.length}`);
 
     // Filtrar mensagens que contêm embeds com o título "BUNKER STATUS"
-    const bunkerStatusMessages = messages.filter((message: any) => {
-      return message.embeds && message.embeds.some((embed: any) => 
+    const bunkerStatusMessages = messages.filter((message: { embeds?: Array<{ title?: string }> }) => {
+      return message.embeds && message.embeds.some((embed: { title?: string }) => 
         embed.title && embed.title.includes('BUNKER STATUS')
       );
     });
@@ -139,10 +139,10 @@ export async function GET() {
     const bunkers: Bunker[] = [];
     let processedCount = 0;
 
-    bunkerStatusMessages.forEach((message: any, messageIndex: number) => {
+    bunkerStatusMessages.forEach((message: { id: string; embeds?: Array<{ title?: string; fields?: Array<{ value: string }> }> }, messageIndex: number) => {
       console.log(`Processando mensagem ${messageIndex + 1}/${bunkerStatusMessages.length} (ID: ${message.id})`);
       
-      message.embeds.forEach((embed: any, embedIndex: number) => {
+      message.embeds?.forEach((embed: { title?: string; fields?: Array<{ value: string }> }, embedIndex: number) => {
         if (embed.title && embed.title.includes('BUNKER STATUS') && embed.fields) {
           console.log(`Embed ${embedIndex + 1} - Campos: ${embed.fields.length}`);
           
