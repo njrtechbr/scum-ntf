@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BunkerData } from '@/types/bunker';
+import { Bunker } from '@/types/bunker';
 
 interface BunkerCardProps {
-  bunker: BunkerData;
+  bunker: Bunker;
 }
 
 export default function BunkerCard({ bunker }: BunkerCardProps) {

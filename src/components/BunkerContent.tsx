@@ -6,20 +6,20 @@ import { fetchBunkerStatus } from '../services/discordApi';
 import BunkerCard from './BunkerCard';
 
 export default function BunkerContent() {
-  const [bunkerStatus, setBunkerStatus] = useState<BunkerStatus>({ bunkers: [] });
+  const [bunkerStatus, setBunkerStatus] = useState<BunkerStatus>({ 
+    bunkers: [],
+    lastUpdate: Date.now(),
+    source: 'initial'
+  });
   const [loading, setLoading] = useState(false);
   const [nextUpdate, setNextUpdate] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchData = async (force: boolean = false) => {
+  const fetchData = async () => {
     try {
       setIsUpdating(true);
-      const data = await fetchBunkerStatus(force);
-      if (data.error) {
-        setError(data.error);
-        return;
-      }
+      const data = await fetchBunkerStatus();
       
       if (data.bunkers) {
         data.bunkers.sort((a, b) => a.timestamp - b.timestamp);
@@ -82,7 +82,7 @@ export default function BunkerContent() {
             </div>
             <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
               <button
-                onClick={() => fetchData(true)}
+                onClick={() => fetchData()}
                 disabled={isUpdating}
                 className={`w-full sm:w-auto px-4 py-2 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2
                   ${isUpdating 
@@ -148,7 +148,7 @@ export default function BunkerContent() {
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 text-center">
               <p className="text-red-400 mb-4">{error}</p>
               <button 
-                onClick={() => fetchData(true)}
+                onClick={() => fetchData()}
                 className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
               >
                 Tentar Novamente

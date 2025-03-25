@@ -51,21 +51,6 @@ export default function BunkerStatusClient({ initialData }: Props) {
     }
   };
 
-  // Agenda o próximo refresh
-  const scheduleNextRefresh = useCallback((delay: number): void => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-    }
-    
-    const refreshTime = Date.now() + delay;
-    setNextRefresh(refreshTime);
-    
-    refreshTimerRef.current = setTimeout(() => {
-      refreshTimerRef.current = null;
-      if (autoRefresh) fetchData();
-    }, delay);
-  }, [autoRefresh]);
-
   // Verifica se já passou tempo suficiente desde a última requisição
   const canMakeRequest = useCallback((): boolean => {
     return Date.now() >= nextRequestTime;
@@ -73,7 +58,7 @@ export default function BunkerStatusClient({ initialData }: Props) {
 
   // Função para buscar dados da API
   const fetchData = useCallback(async (): Promise<void> => {
-    if (isLoading) return; // Evita múltiplas requisições simultâneas
+    if (isLoading) return;
 
     setIsLoading(true);
     setError('');
@@ -114,11 +99,6 @@ export default function BunkerStatusClient({ initialData }: Props) {
         });
         
         setCountdown(newCountdown);
-        
-        // Se auto-refresh estiver ativo, agendar próxima atualização
-        if (autoRefresh) {
-          scheduleNextRefresh(30000); // 30 segundos
-        }
       } else {
         console.error('Formato de resposta inválido:', result);
         setError('Formato de resposta inválido da API');
@@ -129,7 +109,42 @@ export default function BunkerStatusClient({ initialData }: Props) {
     } finally {
       setIsLoading(false);
     }
-  }, [autoRefresh, canMakeRequest, isLoading, nextRequestTime, scheduleNextRefresh]);
+  }, [canMakeRequest, isLoading, nextRequestTime]);
+
+  // Efeito para gerenciar o auto-refresh
+  useEffect(() => {
+    if (!autoRefresh) {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      setNextRefresh(null);
+      return;
+    }
+
+    const scheduleNextRefresh = (delay: number) => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      
+      const refreshTime = Date.now() + delay;
+      setNextRefresh(refreshTime);
+      
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        fetchData();
+      }, delay);
+    };
+
+    scheduleNextRefresh(30000); // 30 segundos para o próximo refresh
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+  }, [autoRefresh, fetchData]);
 
   // Efeito para iniciar o carregamento de dados na montagem do componente
   useEffect(() => {
@@ -146,19 +161,6 @@ export default function BunkerStatusClient({ initialData }: Props) {
       }
     };
   }, [fetchData]);
-
-  // Efeito para gerenciar o auto-refresh
-  useEffect(() => {
-    if (autoRefresh && !nextRefresh) {
-      scheduleNextRefresh(30000); // 30 segundos para o próximo refresh
-    } else if (!autoRefresh && nextRefresh) {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-      setNextRefresh(null);
-    }
-  }, [autoRefresh, nextRefresh, scheduleNextRefresh]);
 
   // Efeito para atualizar o countdown a cada segundo
   useEffect(() => {
