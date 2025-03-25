@@ -1,0 +1,17 @@
+{
+  "bunkers": [
+    {
+      "name": "B3 Bunker",
+      "status": "Active",
+      "timestamp": 1742871760,
+      "isActive": true
+    },
+    {
+      "name": "C0 Bunker",
+      "status": "Locked",
+      "timestamp": 1742979447,
+      "isActive": false
+    }
+  ],
+  "lastUpdate": 1
+}
