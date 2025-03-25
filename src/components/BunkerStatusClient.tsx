@@ -20,7 +20,6 @@ export default function BunkerStatusClient({ initialData }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [nextRefresh, setNextRefresh] = useState<number | null>(null);
-  const [lastRequestTime, setLastRequestTime] = useState<number>(0);
   const [nextRequestTime, setNextRequestTime] = useState<number>(0);
   const [countdown, setCountdown] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +29,7 @@ export default function BunkerStatusClient({ initialData }: Props) {
   const isFirstRender = useRef(true);
   
   // Função para formatar o tempo restante - executada apenas no cliente
-  const formatTimeLeft = (diff: number) => {
+  const formatTimeLeft = (diff: number): string => {
     if (diff === 0) return 'Agora';
     
     // Se for menos de um minuto
@@ -52,13 +51,28 @@ export default function BunkerStatusClient({ initialData }: Props) {
     }
   };
 
+  // Agenda o próximo refresh
+  const scheduleNextRefresh = useCallback((delay: number): void => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+    
+    const refreshTime = Date.now() + delay;
+    setNextRefresh(refreshTime);
+    
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      if (autoRefresh) fetchData();
+    }, delay);
+  }, [autoRefresh]);
+
   // Verifica se já passou tempo suficiente desde a última requisição
-  const canMakeRequest = useCallback(() => {
+  const canMakeRequest = useCallback((): boolean => {
     return Date.now() >= nextRequestTime;
   }, [nextRequestTime]);
 
   // Função para buscar dados da API
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<void> => {
     if (isLoading) return; // Evita múltiplas requisições simultâneas
 
     setIsLoading(true);
@@ -84,7 +98,6 @@ export default function BunkerStatusClient({ initialData }: Props) {
       // Verifica se temos dados válidos
       if (result && Array.isArray(result.bunkers)) {
         setData(result);
-        setLastRequestTime(Date.now());
         setNextRequestTime(Date.now() + MIN_REQUEST_INTERVAL);
         
         // Inicializa o countdown para cada bunker
@@ -116,22 +129,7 @@ export default function BunkerStatusClient({ initialData }: Props) {
     } finally {
       setIsLoading(false);
     }
-  }, [autoRefresh, canMakeRequest, isLoading, nextRequestTime]);
-
-  // Agenda o próximo refresh
-  const scheduleNextRefresh = useCallback((delay: number) => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current);
-    }
-    
-    const refreshTime = Date.now() + delay;
-    setNextRefresh(refreshTime);
-    
-    refreshTimerRef.current = setTimeout(() => {
-      refreshTimerRef.current = null;
-      if (autoRefresh) fetchData();
-    }, delay);
-  }, [autoRefresh, fetchData]);
+  }, [autoRefresh, canMakeRequest, isLoading, nextRequestTime, scheduleNextRefresh]);
 
   // Efeito para iniciar o carregamento de dados na montagem do componente
   useEffect(() => {
@@ -143,8 +141,8 @@ export default function BunkerStatusClient({ initialData }: Props) {
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       if (retryTimeoutRef.current) {
-        const currentTimeout = retryTimeoutRef.current;
-        clearTimeout(currentTimeout);
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
     };
   }, [fetchData]);
@@ -203,14 +201,14 @@ export default function BunkerStatusClient({ initialData }: Props) {
   });
 
   // Função para renderizar o tempo de forma segura (apenas no cliente)
-  const renderTime = () => {
+  const renderTime = (): string => {
     if (typeof window === 'undefined') {
       return 'Carregando...';
     }
     return new Date(data.lastUpdate).toLocaleTimeString();
   };
 
-  const getRefreshCountdown = () => {
+  const getRefreshCountdown = (): string => {
     if (!nextRefresh) return '';
     const seconds = Math.max(0, Math.floor((nextRefresh - Date.now()) / 1000));
     return seconds > 0 ? `(${seconds}s)` : '';
